@@ -35,7 +35,8 @@ import logging
 from pathlib import Path
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+from homeassistant.core import CoreState, HomeAssistant, callback
 
 from .const import (
     CONF_HOST,
@@ -72,12 +73,8 @@ async def _async_register_dashboard(hass: HomeAssistant) -> None:
     Register the built-in Pool dashboard with Lovelace.
 
     Adds the dashboard at ``/procon-ip-pool`` so it appears in the HA
-    sidebar without any manual steps.  The function is a no-op if:
-
-    - Lovelace is not yet initialised (``hass.data["lovelace"]`` absent).
-    - The dashboard is already registered (idempotent – safe on reload).
-    - The bundled ``pool_dashboard.yaml`` file is missing.
-    - Any unexpected error occurs (logged as a warning, setup continues).
+    sidebar without any manual steps.  The function is a no-op when the
+    dashboard is already registered (idempotent – safe on reload).
 
     Args:
         hass: The Home Assistant instance.
@@ -88,7 +85,11 @@ async def _async_register_dashboard(hass: HomeAssistant) -> None:
 
         ll = hass.data.get(LOVELACE_DOMAIN)
         if ll is None or "dashboards" not in ll:
-            _LOGGER.debug("Lovelace not ready – skipping dashboard auto-registration")
+            _LOGGER.warning(
+                "ProCon.IP: Lovelace is not initialised – Pool dashboard was "
+                "not added to the sidebar. Add it manually via "
+                "Settings → Dashboards."
+            )
             return
 
         if _DASHBOARD_URL in ll["dashboards"]:
@@ -96,11 +97,14 @@ async def _async_register_dashboard(hass: HomeAssistant) -> None:
 
         if not _DASHBOARD_YAML.exists():
             _LOGGER.error(
-                "Bundled dashboard file not found: %s – sidebar entry skipped",
+                "ProCon.IP: bundled dashboard file not found at %s – "
+                "sidebar entry skipped.",
                 _DASHBOARD_YAML,
             )
             return
 
+        # url_path is included both as a kwarg and inside the config dict
+        # because different HA versions read it from one or the other place.
         config = {
             "mode": "yaml",
             "filename": str(_DASHBOARD_YAML),
@@ -108,21 +112,23 @@ async def _async_register_dashboard(hass: HomeAssistant) -> None:
             "icon": "mdi:pool",
             "show_in_sidebar": True,
             "require_admin": False,
+            "url_path": _DASHBOARD_URL,
         }
         ll["dashboards"][_DASHBOARD_URL] = LovelaceYAML(hass, _DASHBOARD_URL, config)
 
-        # Tell the frontend a new dashboard was added so it updates the sidebar
-        # without requiring a browser refresh.
+        # Notify the frontend so the sidebar updates without a browser refresh.
         hass.bus.async_fire(
             "lovelace_updated",
             {"action": "create", "url_path": _DASHBOARD_URL},
         )
-        _LOGGER.debug("Pool dashboard registered at /%s", _DASHBOARD_URL)
+        _LOGGER.info("ProCon.IP: Pool dashboard registered at /%s", _DASHBOARD_URL)
 
-    except Exception:  # pylint: disable=broad-except
+    except Exception as err:  # pylint: disable=broad-except
         _LOGGER.warning(
-            "Could not auto-register the Pool dashboard – "
-            "add it manually via Settings → Dashboards"
+            "ProCon.IP: could not auto-register the Pool dashboard (%s). "
+            "Add it manually via Settings → Dashboards.",
+            err,
+            exc_info=True,
         )
 
 
@@ -201,7 +207,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register the sidebar dashboard on the first ProCon.IP entry only.
     # Subsequent entries (multiple devices) skip this – one dashboard suffices.
     if len(hass.data[DOMAIN]) == 1:
-        await _async_register_dashboard(hass)
+        if hass.state == CoreState.running:
+            # HA is already up (e.g. integration loaded via UI without restart)
+            await _async_register_dashboard(hass)
+        else:
+            # HA is still starting up; defer until everything is initialised so
+            # Lovelace has had a chance to finish its own setup.
+            @callback
+            def _on_ha_start(_event=None) -> None:
+                hass.async_create_task(_async_register_dashboard(hass))
+
+            hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _on_ha_start)
 
     return True
 
