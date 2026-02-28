@@ -116,6 +116,59 @@ Relay control is done via a `POST` to `/usrcfg.cgi` with an `ENA` parameter enco
 
 ---
 
+## Dashboard
+
+A ready-made Lovelace dashboard is included in [`dashboards/pool_dashboard.yaml`](dashboards/pool_dashboard.yaml).
+It provides three views out of the box:
+
+| View | Contents |
+|---|---|
+| **Overview** | Live gauges for temperature, pH and Redox; relay controls; canister fill levels; digital inputs |
+| **History** | 48 h temperature trends, 7-day pH / Redox graphs, 30-day canister level history |
+| **Controls** | Full relay control panel for all internal (N1–N8) and external (E1–E8) relays |
+
+### Import steps
+
+**Option A – Paste into a new YAML dashboard**
+
+1. Go to **Settings → Dashboards → Add dashboard**
+2. Choose *YAML dashboard*, give it the title **Pool**
+3. Paste the contents of `pool_dashboard.yaml` into the raw-config editor
+
+**Option B – Reference as a file dashboard**
+
+1. Copy `dashboards/pool_dashboard.yaml` to your HA config directory
+2. Add to `configuration.yaml`:
+
+```yaml
+lovelace:
+  dashboards:
+    pool-dashboard:
+      mode: yaml
+      filename: dashboards/pool_dashboard.yaml
+      title: Pool
+      icon: mdi:pool
+```
+
+3. Restart Home Assistant
+
+### Adapting entity IDs
+
+Entity IDs are derived from the device name and the CSV column labels on your ProCon.IP.
+With the default device name **"ProCon.IP Pool Controller"** the slug is
+`procon_ip_pool_controller`, giving entity IDs like:
+
+```
+sensor.procon_ip_pool_controller_pool
+sensor.procon_ip_pool_controller_ph
+select.procon_ip_pool_controller_filterpumpe_n1
+```
+
+If you renamed your device or your CSV labels differ, do a global find-and-replace of
+`procon_ip_pool_controller` with your actual device slug in `pool_dashboard.yaml`.
+
+---
+
 ## Troubleshooting
 
 | Problem | Solution |
