@@ -72,14 +72,22 @@ async def _async_register_dashboard(hass: HomeAssistant) -> None:
     """
     Register the built-in Pool dashboard with Lovelace.
 
-    Adds the dashboard at ``/procon-ip-pool`` so it appears in the HA
-    sidebar without any manual steps.  The function is a no-op when the
-    dashboard is already registered (idempotent – safe on reload).
+    Two steps are required – matching what HA does when reading extra
+    dashboards from configuration.yaml:
+
+    1. Add a ``LovelaceYAML`` instance to ``hass.data["lovelace"].dashboards``
+       so the YAML file is served when the user navigates to the dashboard.
+    2. Call ``frontend.async_register_panel`` with ``component_name="lovelace"``
+       to create the actual sidebar entry in the HA frontend.
+
+    Without step 2 the dashboard content is stored but the sidebar link
+    never appears.
 
     Args:
         hass: The Home Assistant instance.
     """
     try:
+        from homeassistant.components.frontend import async_register_panel
         from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
         from homeassistant.components.lovelace.dashboard import LovelaceYAML
 
@@ -106,8 +114,6 @@ async def _async_register_dashboard(hass: HomeAssistant) -> None:
             )
             return
 
-        # url_path is included both as a kwarg and inside the config dict
-        # because different HA versions read it from one or the other place.
         config = {
             "mode": "yaml",
             "filename": str(_DASHBOARD_YAML),
@@ -117,13 +123,23 @@ async def _async_register_dashboard(hass: HomeAssistant) -> None:
             "require_admin": False,
             "url_path": _DASHBOARD_URL,
         }
+
+        # Step 1 – store the dashboard so HA can serve its YAML content.
         dashboards[_DASHBOARD_URL] = LovelaceYAML(hass, _DASHBOARD_URL, config)
 
-        # Notify the frontend so the sidebar updates without a browser refresh.
-        hass.bus.async_fire(
-            "lovelace_updated",
-            {"action": "create", "url_path": _DASHBOARD_URL},
+        # Step 2 – register the frontend panel that creates the sidebar entry.
+        # This is the step that was previously missing.
+        async_register_panel(
+            hass,
+            component_name="lovelace",
+            sidebar_title="Pool",
+            sidebar_icon="mdi:pool",
+            frontend_url_path=_DASHBOARD_URL,
+            require_admin=False,
+            config={"mode": "yaml"},
+            update=False,
         )
+
         _LOGGER.info("ProCon.IP: Pool dashboard registered at /%s", _DASHBOARD_URL)
 
     except Exception as err:  # pylint: disable=broad-except
@@ -147,17 +163,16 @@ def _unregister_dashboard(hass: HomeAssistant) -> None:
         hass: The Home Assistant instance.
     """
     try:
+        from homeassistant.components.frontend import async_remove_panel
         from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
 
         ll = hass.data.get(LOVELACE_DOMAIN)
         dashboards = getattr(ll, "dashboards", None)
-        if dashboards and _DASHBOARD_URL in dashboards:
-            dashboards.pop(_DASHBOARD_URL)
-            hass.bus.async_fire(
-                "lovelace_updated",
-                {"action": "delete", "url_path": _DASHBOARD_URL},
-            )
-            _LOGGER.debug("Pool dashboard removed from sidebar")
+        if dashboards:
+            dashboards.pop(_DASHBOARD_URL, None)
+
+        async_remove_panel(hass, _DASHBOARD_URL)
+        _LOGGER.debug("ProCon.IP: Pool dashboard removed from sidebar")
 
     except Exception:  # pylint: disable=broad-except
         pass
