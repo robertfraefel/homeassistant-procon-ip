@@ -44,13 +44,13 @@ views:
             entity: sensor.procon_ip_pool_controller_ph
             name: pH Value
             unit: pH
-            min: 6.8
-            max: 8.2
+            min: 6.5
+            max: 8.0
             needle: true
             severity:
-              red: 6.8    # 6.8–7.2 too acidic – corrosive, eye irritation
-              green: 7.2  # 7.2–7.8 ideal range (target 7.4–7.6)
-              yellow: 7.8 # 7.8–8.2 too alkaline – scale, reduced Cl effectiveness
+              red: 6.5    # < 7.0   too acidic – corrosive, eye irritation
+              green: 7.0  # 7.0–7.4 ideal range
+              yellow: 7.4 # > 7.4   too alkaline (>8.0 clamps to yellow – HA gauge limit)
 
           - type: gauge
             entity: sensor.procon_ip_pool_controller_redox
