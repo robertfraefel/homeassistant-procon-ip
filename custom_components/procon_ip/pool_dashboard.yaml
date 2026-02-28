@@ -48,9 +48,9 @@ views:
             max: 8.2
             needle: true
             severity:
-              red: 6.8    # < 7.0   too acidic – corrosive, eye irritation
-              yellow: 7.0 # 7.0–7.2 slightly low
-              green: 7.2  # 7.2–8.2 ideal range (target 7.4–7.6)
+              red: 6.8    # 6.8–7.2 too acidic – corrosive, eye irritation
+              green: 7.2  # 7.2–7.8 ideal range (target 7.4–7.6)
+              yellow: 7.8 # 7.8–8.2 too alkaline – scale, reduced Cl effectiveness
 
           - type: gauge
             entity: sensor.procon_ip_pool_controller_redox
