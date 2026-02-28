@@ -20,14 +20,19 @@ Lifecycle
    every platform module can retrieve it.
 6. ``async_forward_entry_setups`` calls each platform's
    ``async_setup_entry`` in turn (sensor → select → binary_sensor).
+7. On the first successful setup the built-in Pool dashboard is registered
+   with Lovelace so it appears automatically in the sidebar.
 
 When the user removes the integration:
-7. ``async_unload_entry`` calls ``async_unload_platforms`` which tears down
+8. ``async_unload_entry`` calls ``async_unload_platforms`` which tears down
    every entity, then removes the coordinator from ``hass.data``.
+9. When the last ProCon.IP config entry is removed the Pool dashboard is
+   also removed from the sidebar.
 """
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -49,13 +54,116 @@ from .coordinator import ProConIPCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
+# URL path under which the Pool dashboard is registered in Lovelace.
+# Users can reach it at  http://<ha-host>/procon-ip-pool
+_DASHBOARD_URL = "procon-ip-pool"
+
+# Path to the bundled dashboard YAML (ships inside the integration package
+# so it is installed automatically by HACS along with the Python files).
+_DASHBOARD_YAML = Path(__file__).parent / "pool_dashboard.yaml"
+
+
+# ---------------------------------------------------------------------------
+# Dashboard helpers
+# ---------------------------------------------------------------------------
+
+async def _async_register_dashboard(hass: HomeAssistant) -> None:
+    """
+    Register the built-in Pool dashboard with Lovelace.
+
+    Adds the dashboard at ``/procon-ip-pool`` so it appears in the HA
+    sidebar without any manual steps.  The function is a no-op if:
+
+    - Lovelace is not yet initialised (``hass.data["lovelace"]`` absent).
+    - The dashboard is already registered (idempotent – safe on reload).
+    - The bundled ``pool_dashboard.yaml`` file is missing.
+    - Any unexpected error occurs (logged as a warning, setup continues).
+
+    Args:
+        hass: The Home Assistant instance.
+    """
+    try:
+        from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
+        from homeassistant.components.lovelace.dashboard import LovelaceYAML
+
+        ll = hass.data.get(LOVELACE_DOMAIN)
+        if ll is None or "dashboards" not in ll:
+            _LOGGER.debug("Lovelace not ready – skipping dashboard auto-registration")
+            return
+
+        if _DASHBOARD_URL in ll["dashboards"]:
+            return  # already registered (e.g. integration reload)
+
+        if not _DASHBOARD_YAML.exists():
+            _LOGGER.error(
+                "Bundled dashboard file not found: %s – sidebar entry skipped",
+                _DASHBOARD_YAML,
+            )
+            return
+
+        config = {
+            "mode": "yaml",
+            "filename": str(_DASHBOARD_YAML),
+            "title": "Pool",
+            "icon": "mdi:pool",
+            "show_in_sidebar": True,
+            "require_admin": False,
+        }
+        ll["dashboards"][_DASHBOARD_URL] = LovelaceYAML(hass, _DASHBOARD_URL, config)
+
+        # Tell the frontend a new dashboard was added so it updates the sidebar
+        # without requiring a browser refresh.
+        hass.bus.async_fire(
+            "lovelace_updated",
+            {"action": "create", "url_path": _DASHBOARD_URL},
+        )
+        _LOGGER.debug("Pool dashboard registered at /%s", _DASHBOARD_URL)
+
+    except Exception:  # pylint: disable=broad-except
+        _LOGGER.warning(
+            "Could not auto-register the Pool dashboard – "
+            "add it manually via Settings → Dashboards"
+        )
+
+
+def _unregister_dashboard(hass: HomeAssistant) -> None:
+    """
+    Remove the Pool dashboard from Lovelace when the last entry is unloaded.
+
+    Silently ignores any errors so that unloading the integration always
+    succeeds even if the dashboard was never registered (e.g. because
+    Lovelace was unavailable during setup).
+
+    Args:
+        hass: The Home Assistant instance.
+    """
+    try:
+        from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
+
+        ll = hass.data.get(LOVELACE_DOMAIN)
+        if ll and "dashboards" in ll and _DASHBOARD_URL in ll["dashboards"]:
+            ll["dashboards"].pop(_DASHBOARD_URL)
+            hass.bus.async_fire(
+                "lovelace_updated",
+                {"action": "delete", "url_path": _DASHBOARD_URL},
+            )
+            _LOGGER.debug("Pool dashboard removed from sidebar")
+
+    except Exception:  # pylint: disable=broad-except
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Config-entry lifecycle
+# ---------------------------------------------------------------------------
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """
     Set up the ProCon.IP integration from a config entry.
 
     Creates a ``ProConIPCoordinator``, performs the first data fetch, stores
-    the coordinator in ``hass.data``, and forwards platform setup.
+    the coordinator in ``hass.data``, forwards platform setup, and registers
+    the built-in Pool dashboard in the Lovelace sidebar on the first entry.
 
     Args:
         hass:  The Home Assistant instance.
@@ -90,6 +198,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Delegate entity creation to each platform module in PLATFORMS order
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # Register the sidebar dashboard on the first ProCon.IP entry only.
+    # Subsequent entries (multiple devices) skip this – one dashboard suffices.
+    if len(hass.data[DOMAIN]) == 1:
+        await _async_register_dashboard(hass)
+
     return True
 
 
@@ -98,8 +211,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     Unload a ProCon.IP config entry.
 
     Tears down all platform entities and removes the coordinator from
-    ``hass.data``.  Called when the user deletes the integration or when HA
-    reloads it (e.g. after an options change).
+    ``hass.data``.  When the last ProCon.IP entry is removed the Pool
+    dashboard is also removed from the Lovelace sidebar.
 
     Args:
         hass:  The Home Assistant instance.
@@ -113,4 +226,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         # Only remove the coordinator once all entities have been torn down
         hass.data[DOMAIN].pop(entry.entry_id)
+
+        # Remove the sidebar dashboard when no ProCon.IP entries remain
+        if not hass.data[DOMAIN]:
+            _unregister_dashboard(hass)
+
     return unload_ok

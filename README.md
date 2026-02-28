@@ -118,7 +118,9 @@ Relay control is done via a `POST` to `/usrcfg.cgi` with an `ENA` parameter enco
 
 ## Dashboard
 
-A ready-made Lovelace dashboard is included in [`dashboards/pool_dashboard.yaml`](dashboards/pool_dashboard.yaml).
+A **Pool** dashboard is bundled with the integration and appears automatically in the
+Home Assistant sidebar as soon as the integration is set up — no manual steps required.
+
 It provides three views out of the box:
 
 | View | Contents |
@@ -127,30 +129,7 @@ It provides three views out of the box:
 | **History** | 48 h temperature trends, 7-day pH / Redox graphs, 30-day canister level history |
 | **Controls** | Full relay control panel for all internal (N1–N8) and external (E1–E8) relays |
 
-### Import steps
-
-**Option A – Paste into a new YAML dashboard**
-
-1. Go to **Settings → Dashboards → Add dashboard**
-2. Choose *YAML dashboard*, give it the title **Pool**
-3. Paste the contents of `pool_dashboard.yaml` into the raw-config editor
-
-**Option B – Reference as a file dashboard**
-
-1. Copy `dashboards/pool_dashboard.yaml` to your HA config directory
-2. Add to `configuration.yaml`:
-
-```yaml
-lovelace:
-  dashboards:
-    pool-dashboard:
-      mode: yaml
-      filename: dashboards/pool_dashboard.yaml
-      title: Pool
-      icon: mdi:pool
-```
-
-3. Restart Home Assistant
+The dashboard is removed from the sidebar automatically when the integration is unloaded.
 
 ### Adapting entity IDs
 
@@ -164,8 +143,12 @@ sensor.procon_ip_pool_controller_ph
 select.procon_ip_pool_controller_filterpumpe_n1
 ```
 
-If you renamed your device or your CSV labels differ, do a global find-and-replace of
-`procon_ip_pool_controller` with your actual device slug in `pool_dashboard.yaml`.
+If your CSV labels differ (e.g. different language or custom names), edit the entities
+directly in the dashboard through **Settings → Dashboards → Pool → Edit**.
+
+A copy of the dashboard YAML is also available in
+[`dashboards/pool_dashboard.yaml`](dashboards/pool_dashboard.yaml)
+if you prefer to import it manually or use it as a customisation starting point.
 
 ---
 
