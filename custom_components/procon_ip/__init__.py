@@ -84,7 +84,10 @@ async def _async_register_dashboard(hass: HomeAssistant) -> None:
         from homeassistant.components.lovelace.dashboard import LovelaceYAML
 
         ll = hass.data.get(LOVELACE_DOMAIN)
-        if ll is None or "dashboards" not in ll:
+        # In modern HA, hass.data["lovelace"] is a LovelaceData dataclass;
+        # access the dashboards dict via attribute, not subscript.
+        dashboards = getattr(ll, "dashboards", None)
+        if ll is None or dashboards is None:
             _LOGGER.warning(
                 "ProCon.IP: Lovelace is not initialised – Pool dashboard was "
                 "not added to the sidebar. Add it manually via "
@@ -92,7 +95,7 @@ async def _async_register_dashboard(hass: HomeAssistant) -> None:
             )
             return
 
-        if _DASHBOARD_URL in ll["dashboards"]:
+        if _DASHBOARD_URL in dashboards:
             return  # already registered (e.g. integration reload)
 
         if not _DASHBOARD_YAML.exists():
@@ -114,7 +117,7 @@ async def _async_register_dashboard(hass: HomeAssistant) -> None:
             "require_admin": False,
             "url_path": _DASHBOARD_URL,
         }
-        ll["dashboards"][_DASHBOARD_URL] = LovelaceYAML(hass, _DASHBOARD_URL, config)
+        dashboards[_DASHBOARD_URL] = LovelaceYAML(hass, _DASHBOARD_URL, config)
 
         # Notify the frontend so the sidebar updates without a browser refresh.
         hass.bus.async_fire(
@@ -147,8 +150,9 @@ def _unregister_dashboard(hass: HomeAssistant) -> None:
         from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
 
         ll = hass.data.get(LOVELACE_DOMAIN)
-        if ll and "dashboards" in ll and _DASHBOARD_URL in ll["dashboards"]:
-            ll["dashboards"].pop(_DASHBOARD_URL)
+        dashboards = getattr(ll, "dashboards", None)
+        if dashboards and _DASHBOARD_URL in dashboards:
+            dashboards.pop(_DASHBOARD_URL)
             hass.bus.async_fire(
                 "lovelace_updated",
                 {"action": "delete", "url_path": _DASHBOARD_URL},
