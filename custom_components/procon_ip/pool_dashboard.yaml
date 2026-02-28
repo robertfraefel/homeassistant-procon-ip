@@ -1,22 +1,6 @@
 ##############################################################################
 #  ProCon.IP Pool Controller – Home Assistant Lovelace Dashboard
 #
-#  HOW TO IMPORT
-#  -------------
-#  1.  Open Home Assistant → Settings → Dashboards → Add dashboard
-#  2.  Choose "YAML dashboard" and give it a title (e.g. "Pool")
-#  3.  Paste the contents of this file into the "YAML configuration" field.
-#      Alternatively: save it to  <config>/dashboards/pool_dashboard.yaml
-#      and reference it in configuration.yaml:
-#
-#          lovelace:
-#            dashboards:
-#              pool-dashboard:
-#                mode: yaml
-#                filename: dashboards/pool_dashboard.yaml
-#                title: Pool
-#                icon: mdi:pool
-#
 #  HOW TO ADAPT ENTITY IDs
 #  -----------------------
 #  Home Assistant builds entity IDs from the device name and the CSV label
@@ -27,26 +11,6 @@
 #  do a global find-and-replace on the slug below with your actual slug.
 #
 #  Default slug:  procon_ip_pool_controller
-#
-#  Examples of entity IDs used in this dashboard:
-#    sensor.procon_ip_pool_controller_pool           ← Pool water temperature
-#    sensor.procon_ip_pool_controller_ph             ← pH value
-#    sensor.procon_ip_pool_controller_redox          ← Redox (ORP) value
-#    sensor.procon_ip_pool_controller_durchfluss     ← Flow sensor
-#    sensor.procon_ip_pool_controller_kesseldruck    ← Filter pressure
-#    sensor.procon_ip_pool_controller_absorber       ← Solar absorber temp
-#    sensor.procon_ip_pool_controller_rucklauf       ← Return line temp
-#    sensor.procon_ip_pool_controller_aussen         ← Outdoor temperature
-#    sensor.procon_ip_pool_controller_cl_rest        ← Chlorine canister level
-#    sensor.procon_ip_pool_controller_ph_rest        ← pH- canister level
-#    sensor.procon_ip_pool_controller_ph_rest_1      ← pH+ canister level
-#    sensor.procon_ip_pool_controller_cl_consumption ← Chlorine used (mL)
-#    sensor.procon_ip_pool_controller_ph_consumption ← pH- used (mL)
-#    sensor.procon_ip_pool_controller_ph_consumption_1 ← pH+ used (mL)
-#    select.procon_ip_pool_controller_filterpumpe_n1 ← Filter pump relay
-#    select.procon_ip_pool_controller_cl_pumpe       ← Chlorine dosing pump
-#    select.procon_ip_pool_controller_ph_pumpe       ← pH dosing pump
-#    binary_sensor.procon_ip_pool_controller_poolabdeckung ← Pool cover
 ##############################################################################
 
 title: Pool
@@ -60,13 +24,47 @@ views:
     icon: mdi:pool
     cards:
 
-      # ── Header banner ────────────────────────────────────────────────────
-      - type: markdown
-        content: >
-          # 🏊 Pool Dashboard
-          **ProCon.IP Pool Controller** – live data updated every 30 s
+      # ── Water quality gauges ─────────────────────────────────────────────
+      - type: horizontal-stack
+        cards:
 
-      # ── Quick-glance row ─────────────────────────────────────────────────
+          - type: gauge
+            entity: sensor.procon_ip_pool_controller_pool
+            name: Water Temperature
+            unit: °C
+            min: 10
+            max: 35
+            needle: true
+            severity:
+              green: 24
+              yellow: 30
+              red: 33
+
+          - type: gauge
+            entity: sensor.procon_ip_pool_controller_ph
+            name: pH Value
+            unit: pH
+            min: 6.5
+            max: 8.0
+            needle: true
+            severity:
+              red: 6.5
+              yellow: 7.0
+              green: 7.2
+
+          - type: gauge
+            entity: sensor.procon_ip_pool_controller_redox
+            name: Redox (ORP)
+            unit: mV
+            min: 400
+            max: 900
+            needle: true
+            severity:
+              red: 400
+              yellow: 600
+              green: 650
+
+      # ── Quick-glance status ───────────────────────────────────────────────
       - type: glance
         title: Current Status
         show_state: true
@@ -87,53 +85,6 @@ views:
           - entity: sensor.procon_ip_pool_controller_kesseldruck
             name: Pressure
             icon: mdi:gauge
-          - entity: binary_sensor.procon_ip_pool_controller_poolabdeckung
-            name: Pool Cover
-            icon: mdi:shield-sun
-
-      # ── Water quality gauges ─────────────────────────────────────────────
-      - type: horizontal-stack
-        cards:
-
-          # Pool water temperature
-          - type: gauge
-            entity: sensor.procon_ip_pool_controller_pool
-            name: Water Temperature
-            unit: °C
-            min: 10
-            max: 35
-            needle: true
-            severity:
-              green: 24   # comfortable swimming range
-              yellow: 30  # getting warm
-              red: 33     # too hot
-
-          # pH gauge  –  ideal range 7.2 – 7.4
-          - type: gauge
-            entity: sensor.procon_ip_pool_controller_ph
-            name: pH Value
-            unit: pH
-            min: 6.5
-            max: 8.0
-            needle: true
-            severity:
-              red: 6.5     # too acidic
-              yellow: 7.0  # acceptable lower bound
-              green: 7.2   # ideal start
-              # green up to 7.4 is fine; HA gauge only supports 3 bands
-
-          # Redox / ORP gauge  –  ideal ≥ 650 mV for good disinfection
-          - type: gauge
-            entity: sensor.procon_ip_pool_controller_redox
-            name: Redox (ORP)
-            unit: mV
-            min: 400
-            max: 900
-            needle: true
-            severity:
-              red: 400     # very poor disinfection
-              yellow: 600  # borderline
-              green: 650   # adequate disinfection
 
       # ── Temperature overview ─────────────────────────────────────────────
       - type: entities
@@ -153,90 +104,64 @@ views:
             name: Outdoor
             icon: mdi:weather-sunny
 
-      # ── Pump & relay controls ────────────────────────────────────────────
-      - type: entities
-        title: Equipment Control
-        icon: mdi:electric-switch
-        entities:
-          - type: section
-            label: Pumps
-          - entity: select.procon_ip_pool_controller_filterpumpe_n1
-            name: Filter Pump
+      # ── Filter pump & diagnostics ────────────────────────────────────────
+      - type: horizontal-stack
+        cards:
+          - type: entities
+            title: Filter Pump
             icon: mdi:pump
-          - entity: select.procon_ip_pool_controller_cl_pumpe
-            name: Chlorine Dosing Pump
-            icon: mdi:water-plus
-          - entity: select.procon_ip_pool_controller_ph_pumpe
-            name: pH Dosing Pump
-            icon: mdi:water-minus
-          - type: section
-            label: Other Relays
-          - entity: select.procon_ip_pool_controller_beleuchtung
-            name: Pool Lighting
-            icon: mdi:lightbulb
-          - entity: select.procon_ip_pool_controller_heizung
-            name: Heating
-            icon: mdi:radiator
+            entities:
+              - entity: select.procon_ip_pool_controller_filterpumpe_n1
+                name: Filter Pump (N1)
+                icon: mdi:pump
+          - type: entity
+            entity: sensor.procon_ip_pool_controller_kesseldruck
+            name: Filter Pressure
+            icon: mdi:gauge
+          - type: entity
+            entity: sensor.procon_ip_pool_controller_durchfluss
+            name: Flow Rate
+            icon: mdi:water-pump
 
       # ── Canister fill levels ─────────────────────────────────────────────
       - type: horizontal-stack
         cards:
+          - type: gauge
+            entity: sensor.procon_ip_pool_controller_cl_rest
+            name: Chlorine
+            unit: "%"
+            min: 0
+            max: 100
+            needle: false
+            severity:
+              red: 0
+              yellow: 20
+              green: 40
+          - type: gauge
+            entity: sensor.procon_ip_pool_controller_ph_rest
+            name: pH−
+            unit: "%"
+            min: 0
+            max: 100
+            needle: false
+            severity:
+              red: 0
+              yellow: 20
+              green: 40
 
-          - type: vertical-stack
-            cards:
-              - type: markdown
-                content: "### Canister Levels"
-              - type: gauge
-                entity: sensor.procon_ip_pool_controller_cl_rest
-                name: Chlorine
-                unit: "%"
-                min: 0
-                max: 100
-                needle: false
-                severity:
-                  red: 0
-                  yellow: 20
-                  green: 40
-              - type: gauge
-                entity: sensor.procon_ip_pool_controller_ph_rest
-                name: pH−
-                unit: "%"
-                min: 0
-                max: 100
-                needle: false
-                severity:
-                  red: 0
-                  yellow: 20
-                  green: 40
-              - type: gauge
-                entity: sensor.procon_ip_pool_controller_ph_rest_1
-                name: pH+
-                unit: "%"
-                min: 0
-                max: 100
-                needle: false
-                severity:
-                  red: 0
-                  yellow: 20
-                  green: 40
+      # ── Chemical consumption ─────────────────────────────────────────────
+      - type: entities
+        title: Chemical Consumption
+        icon: mdi:flask
+        entities:
+          - entity: sensor.procon_ip_pool_controller_cl_consumption
+            name: Chlorine used
+            icon: mdi:flask
+          - entity: sensor.procon_ip_pool_controller_ph_consumption
+            name: pH− used
+            icon: mdi:flask-outline
 
-          - type: vertical-stack
-            cards:
-              - type: markdown
-                content: "### Chemical Consumption"
-              - type: entities
-                entities:
-                  - entity: sensor.procon_ip_pool_controller_cl_consumption
-                    name: Chlorine used
-                    icon: mdi:flask
-                  - entity: sensor.procon_ip_pool_controller_ph_consumption
-                    name: pH− used
-                    icon: mdi:flask-outline
-                  - entity: sensor.procon_ip_pool_controller_ph_consumption_1
-                    name: pH+ used
-                    icon: mdi:flask-empty-outline
-
-      # ── Digital inputs (binary sensors) ─────────────────────────────────
+      # ── Digital inputs ────────────────────────────────────────────────────
       - type: entities
         title: Digital Inputs
         icon: mdi:electric-switch-closed
@@ -251,18 +176,6 @@ views:
             name: Button 3
             icon: mdi:gesture-tap-button
 
-      # ── Diagnostics row ──────────────────────────────────────────────────
-      - type: horizontal-stack
-        cards:
-          - type: entity
-            entity: sensor.procon_ip_pool_controller_kesseldruck
-            name: Filter Pressure
-            icon: mdi:gauge
-          - type: entity
-            entity: sensor.procon_ip_pool_controller_durchfluss
-            name: Flow Rate
-            icon: mdi:water-pump
-
 
   ##########################################################################
   #  VIEW 2 – HISTORY / CHARTS
@@ -272,10 +185,6 @@ views:
     icon: mdi:chart-line
     cards:
 
-      - type: markdown
-        content: "## Historical Trends"
-
-      # Temperature history – 48 h
       - type: history-graph
         title: Temperatures (48 h)
         hours_to_show: 48
@@ -290,7 +199,6 @@ views:
           - entity: sensor.procon_ip_pool_controller_aussen
             name: Outdoor
 
-      # pH history – 7 days
       - type: history-graph
         title: pH (7 days)
         hours_to_show: 168
@@ -299,7 +207,6 @@ views:
           - entity: sensor.procon_ip_pool_controller_ph
             name: pH
 
-      # Redox history – 7 days
       - type: history-graph
         title: Redox / ORP (7 days)
         hours_to_show: 168
@@ -308,7 +215,6 @@ views:
           - entity: sensor.procon_ip_pool_controller_redox
             name: Redox
 
-      # Flow rate & pressure – 48 h
       - type: history-graph
         title: Flow & Pressure (48 h)
         hours_to_show: 48
@@ -319,7 +225,6 @@ views:
           - entity: sensor.procon_ip_pool_controller_kesseldruck
             name: Pressure (bar)
 
-      # Canister levels – 30 days
       - type: history-graph
         title: Canister Fill Levels (30 days)
         hours_to_show: 720
@@ -329,8 +234,6 @@ views:
             name: Chlorine %
           - entity: sensor.procon_ip_pool_controller_ph_rest
             name: pH− %
-          - entity: sensor.procon_ip_pool_controller_ph_rest_1
-            name: pH+ %
 
 
   ##########################################################################
@@ -346,69 +249,17 @@ views:
           ## Relay Control
 
           Each relay supports three modes:
-          - **auto** – the ProCon.IP schedule / dosage logic controls this relay
-          - **on**   – force the relay permanently on (manual override)
-          - **off**  – force the relay permanently off (manual override)
+          **auto** – ProCon.IP schedule controls this relay |
+          **on** – force permanently on |
+          **off** – force permanently off
 
-          > Always return relays to **auto** after manual testing so the device
-          > can resume its programmed schedule.
+          Add your active relay entities below.
+          Find them in **Settings → Devices & Services → ProCon.IP Pool Controller**.
 
-      # Internal relays
       - type: entities
-        title: Internal Relays (N1–N8)
+        title: Relays
         icon: mdi:electric-switch
         entities:
           - entity: select.procon_ip_pool_controller_filterpumpe_n1
             name: Filter Pump (N1)
             icon: mdi:pump
-          - entity: select.procon_ip_pool_controller_n2
-            name: Relay N2
-            icon: mdi:electric-switch
-          - entity: select.procon_ip_pool_controller_n3
-            name: Relay N3
-            icon: mdi:electric-switch
-          - entity: select.procon_ip_pool_controller_n4
-            name: Relay N4
-            icon: mdi:electric-switch
-          - entity: select.procon_ip_pool_controller_n5
-            name: Relay N5
-            icon: mdi:electric-switch
-          - entity: select.procon_ip_pool_controller_n6
-            name: Relay N6
-            icon: mdi:electric-switch
-          - entity: select.procon_ip_pool_controller_n7
-            name: Relay N7
-            icon: mdi:electric-switch
-          - entity: select.procon_ip_pool_controller_n8
-            name: Relay N8
-            icon: mdi:electric-switch
-
-      # External relays
-      - type: entities
-        title: External Relays (E1–E8)
-        icon: mdi:electric-switch-closed
-        entities:
-          - entity: select.procon_ip_pool_controller_e1
-            name: External Relay E1
-            icon: mdi:electric-switch
-          - entity: select.procon_ip_pool_controller_e2
-            name: External Relay E2
-            icon: mdi:electric-switch
-          - entity: select.procon_ip_pool_controller_e3
-            name: External Relay E3
-            icon: mdi:electric-switch
-          - entity: select.procon_ip_pool_controller_e4
-            name: External Relay E4
-            icon: mdi:electric-switch
-          - entity: select.procon_ip_pool_controller_e5
-            name: External Relay E5
-            icon: mdi:electric-switch
-          - entity: select.procon_ip_pool_controller_e6
-            name: External Relay E6
-            icon: mdi:electric-switch
-          - entity: select.procon_ip_pool_controller_e7
-            name: External Relay E7
-            icon: mdi:electric-switch
-          - entity: select.procon_ip_pool_controller_e8
-            name: External Relay E8
-            icon: mdi:electric-switch
