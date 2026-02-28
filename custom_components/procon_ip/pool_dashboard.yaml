@@ -105,21 +105,17 @@ views:
             icon: mdi:weather-sunny
 
       # ── Filter pump & diagnostics ────────────────────────────────────────
-      - type: horizontal-stack
-        cards:
-          - type: entities
-            title: Filter Pump
+      - type: entities
+        title: Filter Pump
+        icon: mdi:pump
+        entities:
+          - entity: select.procon_ip_pool_controller_filterpumpe_n1
+            name: Filter Pump (N1)
             icon: mdi:pump
-            entities:
-              - entity: select.procon_ip_pool_controller_filterpumpe_n1
-                name: Filter Pump (N1)
-                icon: mdi:pump
-          - type: entity
-            entity: sensor.procon_ip_pool_controller_kesseldruck
+          - entity: sensor.procon_ip_pool_controller_kesseldruck
             name: Filter Pressure
             icon: mdi:gauge
-          - type: entity
-            entity: sensor.procon_ip_pool_controller_durchfluss
+          - entity: sensor.procon_ip_pool_controller_durchfluss
             name: Flow Rate
             icon: mdi:water-pump
 

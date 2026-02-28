@@ -120,27 +120,23 @@ def _generate_dashboard_yaml(coordinator: ProConIPCoordinator) -> str:
                 icon = _get_relay_icon(name)
                 active_relays.append((entity_id, name, icon))
 
-    # ── Overview: first active relay shown in the filter-pump card ────────
+    # ── Overview: filter-pump card (full-width entities list) ────────────
     if active_relays:
         pump_entity, pump_name, pump_icon = active_relays[0]
         overview_pump_card = (
             "\n"
             "      # ── Filter pump & diagnostics ────────────────────────────────────────\n"
-            "      - type: horizontal-stack\n"
-            "        cards:\n"
-            "          - type: entities\n"
-            "            title: Filter Pump\n"
-            "            icon: mdi:pump\n"
-            "            entities:\n"
-            f"              - entity: {pump_entity}\n"
-            f"                name: {pump_name}\n"
-            f"                icon: {pump_icon}\n"
-            f"          - type: entity\n"
-            f"            entity: sensor.{_DEVICE_SLUG}_kesseldruck\n"
+            "      - type: entities\n"
+            "        title: Filter Pump\n"
+            "        icon: mdi:pump\n"
+            "        entities:\n"
+            f"          - entity: {pump_entity}\n"
+            f"            name: {pump_name}\n"
+            f"            icon: {pump_icon}\n"
+            f"          - entity: sensor.{_DEVICE_SLUG}_kesseldruck\n"
             f"            name: Filter Pressure\n"
             f"            icon: mdi:gauge\n"
-            f"          - type: entity\n"
-            f"            entity: sensor.{_DEVICE_SLUG}_durchfluss\n"
+            f"          - entity: sensor.{_DEVICE_SLUG}_durchfluss\n"
             f"            name: Flow Rate\n"
             f"            icon: mdi:water-pump\n"
         )
