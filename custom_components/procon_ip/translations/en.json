@@ -1,0 +1,25 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to ProCon.IP Pool Controller",
+        "description": "Enter the network details for your ProCon.IP device.",
+        "data": {
+          "host": "Host / IP address",
+          "port": "Port",
+          "username": "Username",
+          "password": "Password",
+          "update_interval": "Update interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect. Check the host, port and network.",
+      "invalid_auth": "Invalid username or password.",
+      "unknown": "An unexpected error occurred. Check the logs for details."
+    },
+    "abort": {
+      "already_configured": "This ProCon.IP device is already configured."
+    }
+  }
+}

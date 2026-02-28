@@ -1,0 +1,10 @@
+{
+  "domain": "procon_ip",
+  "name": "ProCon.IP Pool Controller",
+  "version": "1.0.0",
+  "codeowners": ["@robertfraefel"],
+  "config_flow": true,
+  "documentation": "https://github.com/robertfraefel/homeassistant-procon-ip",
+  "iot_class": "local_polling",
+  "requirements": []
+}
