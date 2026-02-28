@@ -87,7 +87,7 @@ async def _async_register_dashboard(hass: HomeAssistant) -> None:
         hass: The Home Assistant instance.
     """
     try:
-        from homeassistant.components.frontend import async_register_panel
+        from homeassistant.components.frontend import async_register_built_in_panel
         from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
         from homeassistant.components.lovelace.dashboard import LovelaceYAML
 
@@ -129,9 +129,10 @@ async def _async_register_dashboard(hass: HomeAssistant) -> None:
 
         # Step 2 – register the frontend panel that creates the sidebar entry.
         # This is the step that was previously missing.
-        async_register_panel(
+        # HA's public API for this is async_register_built_in_panel.
+        async_register_built_in_panel(
             hass,
-            component_name="lovelace",
+            "lovelace",
             sidebar_title="Pool",
             sidebar_icon="mdi:pool",
             frontend_url_path=_DASHBOARD_URL,
