@@ -28,44 +28,38 @@ views:
       - type: horizontal-stack
         cards:
 
-          - type: custom:apexcharts-card
-            chart_type: radialBar
-            header:
-              show: true
-              title: Water Temperature
-              show_states: true
-              colorize_states: true
-            series:
-              - entity: sensor.procon_ip_pool_controller_pool
-                min: 0
-                max: 40
-                color: "{% set v = states('sensor.procon_ip_pool_controller_pool') | float(20) %}{% if v < 28 %}#4caf50{% elif v < 34 %}#ffc107{% else %}#f44336{% endif %}"
+          - type: gauge
+            entity: sensor.procon_ip_pool_controller_pool
+            name: Water Temperature
+            min: 0
+            max: 40
+            needle: true
+            severity:
+              red: 0
+              yellow: 22
+              green: 26
 
-          - type: custom:apexcharts-card
-            chart_type: radialBar
-            header:
-              show: true
-              title: pH Value
-              show_states: true
-              colorize_states: true
-            series:
-              - entity: sensor.procon_ip_pool_controller_ph
-                min: 5.0
-                max: 9.0
-                color: "{% set v = states('sensor.procon_ip_pool_controller_ph') | float(7.2) %}{% if v < 6.5 %}#f44336{% elif v < 7.0 %}#ffc107{% elif v < 7.4 %}#4caf50{% elif v < 8.0 %}#ffc107{% else %}#f44336{% endif %}"
+          - type: gauge
+            entity: sensor.procon_ip_pool_controller_ph
+            name: pH Value
+            min: 6.0
+            max: 8.5
+            needle: true
+            severity:
+              red: 0
+              yellow: 6.5
+              green: 7.0
 
-          - type: custom:apexcharts-card
-            chart_type: radialBar
-            header:
-              show: true
-              title: Redox (ORP)
-              show_states: true
-              colorize_states: true
-            series:
-              - entity: sensor.procon_ip_pool_controller_redox
-                min: 0
-                max: 1000
-                color: "{% set v = states('sensor.procon_ip_pool_controller_redox') | float(700) %}{% if v < 550 %}#f44336{% elif v < 650 %}#ffc107{% elif v < 750 %}#4caf50{% elif v < 850 %}#ffc107{% else %}#f44336{% endif %}"
+          - type: gauge
+            entity: sensor.procon_ip_pool_controller_redox
+            name: Redox (ORP)
+            min: 0
+            max: 1000
+            needle: true
+            severity:
+              red: 0
+              yellow: 550
+              green: 650
 
       # ── Quick-glance status ───────────────────────────────────────────────
       - type: glance
