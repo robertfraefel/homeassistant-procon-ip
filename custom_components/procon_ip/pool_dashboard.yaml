@@ -56,17 +56,19 @@ views:
               colorize_states: true
             series:
               - entity: sensor.procon_ip_pool_controller_ph
-                min: 6.5
-                max: 8.0
+                min: 6.0
+                max: 8.5
                 color_threshold:
+                  - value: 6.0
+                    color: "#f44336"   # < 6.5   red
                   - value: 6.5
-                    color: "#f44336"
+                    color: "#ffc107"   # 6.5–7.0 yellow
                   - value: 7.0
-                    color: "#4caf50"
+                    color: "#4caf50"   # 7.0–7.4 green
                   - value: 7.4
-                    color: "#ffc107"
+                    color: "#ffc107"   # 7.4–8.0 yellow
                   - value: 8.0
-                    color: "#f44336"
+                    color: "#f44336"   # > 8.0   red
 
           - type: custom:apexcharts-card
             chart_type: radialBar
@@ -78,14 +80,18 @@ views:
             series:
               - entity: sensor.procon_ip_pool_controller_redox
                 min: 0
-                max: 900
+                max: 1000
                 color_threshold:
                   - value: 0
-                    color: "#f44336"
+                    color: "#f44336"   # < 550 mV   red
+                  - value: 550
+                    color: "#ffc107"   # 550–650 mV yellow
                   - value: 650
-                    color: "#ffc107"
+                    color: "#4caf50"   # 650–750 mV green
                   - value: 750
-                    color: "#4caf50"
+                    color: "#ffc107"   # 750–850 mV yellow
+                  - value: 850
+                    color: "#f44336"   # > 850 mV   red
 
       # ── Quick-glance status ───────────────────────────────────────────────
       - type: glance
