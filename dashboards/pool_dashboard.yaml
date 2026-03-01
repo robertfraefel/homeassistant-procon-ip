@@ -28,41 +28,64 @@ views:
       - type: horizontal-stack
         cards:
 
-          - type: gauge
-            entity: sensor.procon_ip_pool_controller_pool
-            name: Water Temperature
-            unit: °C
-            min: 10
-            max: 40
-            needle: true
-            severity:
-              green: 10   # < 28 °C  cool to ideal swimming temperature
-              yellow: 28  # 28–34 °C warm
-              red: 34     # > 34 °C  dangerously hot
+          - type: custom:apexcharts-card
+            chart_type: radialBar
+            header:
+              show: true
+              title: Water Temperature
+              show_states: true
+              colorize_states: true
+            series:
+              - entity: sensor.procon_ip_pool_controller_pool
+                min: 10
+                max: 40
+                color_threshold:
+                  - value: 10
+                    color: "#4caf50"
+                  - value: 28
+                    color: "#ffc107"
+                  - value: 34
+                    color: "#f44336"
 
-          - type: gauge
-            entity: sensor.procon_ip_pool_controller_ph
-            name: pH Value
-            unit: pH
-            min: 6.5
-            max: 8.0
-            needle: true
-            severity:
-              red: 6.5    # < 7.0   too acidic – corrosive, eye irritation
-              green: 7.0  # 7.0–7.4 ideal range
-              yellow: 7.4 # > 7.4   too alkaline (>8.0 clamps to yellow – HA gauge limit)
+          - type: custom:apexcharts-card
+            chart_type: radialBar
+            header:
+              show: true
+              title: pH Value
+              show_states: true
+              colorize_states: true
+            series:
+              - entity: sensor.procon_ip_pool_controller_ph
+                min: 6.5
+                max: 8.0
+                color_threshold:
+                  - value: 6.5
+                    color: "#f44336"
+                  - value: 7.0
+                    color: "#4caf50"
+                  - value: 7.4
+                    color: "#ffc107"
+                  - value: 8.0
+                    color: "#f44336"
 
-          - type: gauge
-            entity: sensor.procon_ip_pool_controller_redox
-            name: Redox (ORP)
-            unit: mV
-            min: 0
-            max: 900
-            needle: true
-            severity:
-              red: 0      # < 650 mV insufficient disinfection (WHO minimum 650 mV)
-              yellow: 650 # 650–750 mV borderline / adequate
-              green: 750  # > 750 mV ideal disinfection
+          - type: custom:apexcharts-card
+            chart_type: radialBar
+            header:
+              show: true
+              title: Redox (ORP)
+              show_states: true
+              colorize_states: true
+            series:
+              - entity: sensor.procon_ip_pool_controller_redox
+                min: 0
+                max: 900
+                color_threshold:
+                  - value: 0
+                    color: "#f44336"
+                  - value: 650
+                    color: "#ffc107"
+                  - value: 750
+                    color: "#4caf50"
 
       # ── Quick-glance status ───────────────────────────────────────────────
       - type: glance
