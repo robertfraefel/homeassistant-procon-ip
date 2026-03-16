@@ -38,6 +38,7 @@ from pathlib import Path
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import CoreState, HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.util import slugify as ha_slugify
 
 from .const import (
@@ -554,6 +555,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # this integration.
     coordinator = ProConIPCoordinator(
         hass=hass,
+        entry_id=entry.entry_id,
         host=entry.data[CONF_HOST],
         port=entry.data.get(CONF_PORT, DEFAULT_PORT),
         username=entry.data.get(CONF_USERNAME, DEFAULT_USERNAME),
@@ -572,6 +574,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Delegate entity creation to each platform module in PLATFORMS order
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Clean up orphaned devices that no longer have any entities.
+    # This can happen when the device identifier changes (e.g. migration from
+    # hardware-based ID to entry_id-based ID).
+    dev_reg = dr.async_get(hass)
+    for device in dr.async_entries_for_config_entry(dev_reg, entry.entry_id):
+        if not er.async_entries_for_device(
+            er.async_get(hass), device.id, include_disabled_entities=True
+        ):
+            dev_reg.async_remove_device(device.id)
 
     # Register the sidebar dashboard on the first ProCon.IP entry only.
     # Subsequent entries (multiple devices) skip this – one dashboard suffices.

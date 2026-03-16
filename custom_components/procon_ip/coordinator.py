@@ -351,12 +351,14 @@ class ProConIPCoordinator(DataUpdateCoordinator[ProConIPData]):
     def __init__(
         self,
         hass: HomeAssistant,
+        entry_id: str,
         host: str,
         port: int,
         username: str,
         password: str,
         update_interval: int,
     ) -> None:
+        self._entry_id = entry_id
         self.host      = host
         self.port      = port
         self.username  = username
@@ -382,20 +384,16 @@ class ProConIPCoordinator(DataUpdateCoordinator[ProConIPData]):
         All entities from this coordinator share the same ``DeviceInfo`` so
         they appear grouped under a single device card in the HA UI.
 
-        The ``identifiers`` tuple uses the device's own SYSINFO ID as the
-        stable unique key so the device entry survives IP address changes.
-        When that field is absent (very old firmware), ``host:port`` is used
-        as a fallback.
+        Uses ``entry_id`` as the stable identifier so the device entry never
+        changes, even if the hardware's SYSINFO ID or IP address changes.
         """
-        firmware  = self.data.firmware  if self.data else "unknown"
-        device_id = self.data.device_id if self.data else ""
+        firmware = self.data.firmware if self.data else "unknown"
         return DeviceInfo(
-            identifiers={(DOMAIN, device_id or f"{self.host}:{self.port}")},
+            identifiers={(DOMAIN, self._entry_id)},
             name="ProCon.IP Pool Controller",
             manufacturer="ProCon.IP",
             model="Pool Controller",
             sw_version=firmware,
-            # Clicking the device card opens the native ProCon.IP web UI
             configuration_url=self._base_url,
         )
 

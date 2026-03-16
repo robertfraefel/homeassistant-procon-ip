@@ -63,7 +63,7 @@ DEFAULT_UPDATE_INTERVAL = 30  # seconds
 # HA platform identifiers – forwarded in sequence by async_setup_entry so
 # that each platform module's async_setup_entry is called automatically.
 # ---------------------------------------------------------------------------
-PLATFORMS = ["sensor", "select", "binary_sensor"]
+PLATFORMS = ["sensor", "select", "switch", "binary_sensor"]
 
 # ---------------------------------------------------------------------------
 # CSV column ranges for each data category
