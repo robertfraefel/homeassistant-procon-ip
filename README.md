@@ -10,6 +10,7 @@ A custom Home Assistant integration for the [ProCon.IP](https://github.com/ylabo
 |---|---|
 | **Sensor** | Temperature, pH, Redox, pressure, flow rate, canister fill levels, chemical consumption |
 | **Select** | Per-relay mode control: **Auto / On / Off** |
+| **Switch** | Per-relay on/off (manual mode); a lighter alternative to **Select** for automations that just need on/off semantics |
 | **Binary Sensor** | Digital inputs (buttons, pool-cover status, …) |
 
 All entity names and units are read directly from the device's `GetState.csv` so they automatically match your local configuration (including German labels).
@@ -90,6 +91,17 @@ Available options:
 
 > **Tip:** Use `auto` to let the ProCon.IP manage filter pumps on its own timer.
 
+### Switch (relay on/off)
+
+One **Switch** entity per active relay.  Turning the switch on/off sets the
+relay to **manual + on** / **manual + off** respectively — equivalent to the
+`on` / `off` options of the matching Select entity, but exposed as a plain
+on/off toggle for use in automations and Lovelace switch cards.
+
+The switch reports the relay's **physical** state regardless of mode, so a
+relay that is currently energised by the device's own schedule shows as *on*
+even while in *auto* mode.
+
 ### Binary Sensors
 
 Digital inputs with no numeric unit (e.g. buttons, pool-cover position switch) appear as binary sensors.
@@ -113,6 +125,8 @@ Row 5  Raws      – raw integer values
 **Displayed value = offset + factor × raw**
 
 Relay control is done via a `POST` to `/usrcfg.cgi` with an `ENA` parameter encoding the on/manual bit patterns for all relays simultaneously (same protocol used by the official ProCon.IP web interface and the [procon-ip](https://github.com/ylabonte/procon-ip) TypeScript library).
+
+Because `/usrcfg.cgi` always replaces the state of *all* relays in a single POST, the integration performs a **read-modify-write** against fresh device state on every relay change: it issues a `GET /GetState.csv` immediately before the POST, so manual-mode changes you make in the ProCon.IP's own web UI (or from any other client) are preserved across HA writes. This costs one extra HTTP round-trip per relay command and is negligible on a LAN.
 
 ---
 

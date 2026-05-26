@@ -35,13 +35,22 @@ Data flow
     User changes Select entity
           │
           ▼
-    async_set_relay()      reads current ProConIPData, flips one relay's bits
+    async_set_relay()      fetches a FRESH /GetState.csv, flips one relay's
+                           bits, POSTs the result.  The fresh fetch is
+                           essential — using the cached snapshot would clobber
+                           any manual-mode changes made via the device's web
+                           UI between polls.
           │
           ▼
     POST /usrcfg.cgi       sends full ENA bit pattern to the device
           │
           ▼
-    async_request_refresh() triggers an immediate re-poll so entities update
+    async_set_updated_data() publishes the EXPECTED post-write state to all
+                             entities.  (Not async_request_refresh: the
+                             device's GetState.csv lags ~250ms behind its
+                             manual.ini after a POST, so an immediate
+                             re-poll often returns the pre-write raw value
+                             and causes a visible UI revert flicker.)
 
 Relay ENA protocol
 ------------------
@@ -415,6 +424,33 @@ class ProConIPCoordinator(DataUpdateCoordinator[ProConIPData]):
         return None
 
     # ------------------------------------------------------------------
+    # Fresh-fetch helper (used by both polling and relay writes)
+    # ------------------------------------------------------------------
+
+    async def _fetch_state(self) -> ProConIPData:
+        """
+        GET ``/GetState.csv`` once and return a parsed snapshot.
+
+        Shared by ``_async_update_data`` (periodic polling) and
+        ``async_set_relay`` (read-before-write).  Raises the underlying
+        ``aiohttp.ClientError`` / ``ValueError`` / ``IndexError`` so callers
+        can decide how to surface the failure (``UpdateFailed`` for the
+        coordinator, a logged error + abort for relay writes).
+        """
+        url     = f"{self._base_url}/GetState.csv"
+        session = async_get_clientsession(self.hass)
+
+        async with session.get(
+            url,
+            auth=self._build_auth(),
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as resp:
+            resp.raise_for_status()
+            text = await resp.text()
+
+        return _parse_csv(text)
+
+    # ------------------------------------------------------------------
     # DataUpdateCoordinator interface
     # ------------------------------------------------------------------
 
@@ -437,28 +473,16 @@ class ProConIPCoordinator(DataUpdateCoordinator[ProConIPData]):
                 subscribed entities as ``unavailable`` once the error count
                 exceeds the coordinator's ``error_tolerance``.
         """
-        url     = f"{self._base_url}/GetState.csv"
-        session = async_get_clientsession(self.hass)
-
         try:
-            async with session.get(
-                url,
-                auth=self._build_auth(),
-                timeout=aiohttp.ClientTimeout(total=10),
-            ) as resp:
-                resp.raise_for_status()
-                text = await resp.text()
+            return await self._fetch_state()
         except aiohttp.ClientResponseError as err:
             raise UpdateFailed(
-                f"HTTP {err.status} error fetching {url}"
+                f"HTTP {err.status} error fetching /GetState.csv"
             ) from err
         except aiohttp.ClientError as err:
             raise UpdateFailed(
-                f"Network error fetching {url}: {err}"
+                f"Network error fetching /GetState.csv: {err}"
             ) from err
-
-        try:
-            return _parse_csv(text)
         except (ValueError, IndexError) as err:
             raise UpdateFailed(f"Failed to parse GetState.csv: {err}") from err
 
@@ -473,11 +497,14 @@ class ProConIPCoordinator(DataUpdateCoordinator[ProConIPData]):
         The ProCon.IP ``/usrcfg.cgi`` endpoint replaces the state of **all**
         relays in one POST, so a per-relay command must:
 
-        1. Derive the current full-state bit patterns from the latest cached
-           ``ProConIPData`` snapshot using ``compute_ena_bits()``.
-        2. Modify only the target relay's two bits.
-        3. POST the updated ``ENA`` string to the device.
-        4. Request an immediate coordinator refresh so entities reflect the
+        1. Fetch a fresh ``/GetState.csv`` to obtain the device's authoritative
+           current state (the cached snapshot can be up to ``update_interval``
+           seconds stale).
+        2. Derive the full-state bit patterns from that snapshot using
+           ``compute_ena_bits()``.
+        3. Modify only the target relay's two bits.
+        4. POST the updated ``ENA`` string to the device.
+        5. Request an immediate coordinator refresh so entities reflect the
            change without waiting for the next scheduled poll.
 
         Bit-manipulation rules (mirrors the procon-ip TypeScript library):
@@ -497,12 +524,6 @@ class ProConIPCoordinator(DataUpdateCoordinator[ProConIPData]):
             state:     Desired state string: ``"auto"``, ``"on"``,
                        or ``"off"``.
         """
-        if self.data is None:
-            _LOGGER.warning(
-                "Cannot set relay col=%d: coordinator has no data yet", relay_col
-            )
-            return
-
         if relay_col not in ALL_RELAY_COLS:
             _LOGGER.error(
                 "relay_col %d is not a valid relay column; "
@@ -512,12 +533,29 @@ class ProConIPCoordinator(DataUpdateCoordinator[ProConIPData]):
             )
             return
 
+        # Read-before-write against the device, NOT the cached snapshot.
+        # /usrcfg.cgi replaces all 16 relay bits in one POST, so we must send
+        # back every other relay's current manual/on bits unchanged. Using
+        # self.data here would lose any manual-mode change a user made via the
+        # device's own web UI in the up-to-update_interval window since the
+        # last poll — turning their just-set relay back to auto as a
+        # side-effect of an unrelated HA write.
+        try:
+            fresh = await self._fetch_state()
+        except (aiohttp.ClientError, ValueError, IndexError) as err:
+            _LOGGER.error(
+                "Cannot set relay col=%d to %r: failed to read current state "
+                "from device: %s",
+                relay_col, state, err,
+            )
+            return
+
         # Locate this relay's position in the bit patterns
         relay_index = ALL_RELAY_COLS.index(relay_col)
         bit_mask    = 1 << relay_index  # e.g. relay_index=2 → bit_mask=4
 
-        # Read the current full-state bit patterns from the cached snapshot
-        bit_states_0, bit_states_1 = self.data.compute_ena_bits()
+        # Derive the full-state bit patterns from the fresh snapshot
+        bit_states_0, bit_states_1 = fresh.compute_ena_bits()
 
         # Flip only the target relay's bits according to the requested state
         if state == RELAY_STATE_AUTO:
@@ -558,5 +596,33 @@ class ProConIPCoordinator(DataUpdateCoordinator[ProConIPData]):
             )
             return
 
-        # Trigger an immediate poll so all entities reflect the new state
-        await self.async_request_refresh()
+        # Optimistically publish the expected post-write state to all entities.
+        #
+        # Avoid the obvious-looking alternative of `async_request_refresh()`:
+        # the device updates its `manual.ini` immediately on POST but its
+        # GetState.csv lags by ~250ms while the relay's raw byte catches up.
+        # A refresh that lands in that window publishes the OLD raw value,
+        # which causes a visible UI revert (e.g. Auto→On→Auto when the user
+        # turns a manual-on relay back to auto).
+        #
+        # `fresh` is from microseconds before the POST so every OTHER relay's
+        # raw value is still current; we only need to overwrite the target
+        # relay's byte with the value we just asked the device to take.
+        # The next scheduled poll (within `update_interval` seconds) verifies
+        # the device actually applied our intent.
+        expected_raw = {
+            RELAY_STATE_AUTO: 0,  # auto, off  (device may flip bit 0 to 1 if its schedule wants on)
+            RELAY_STATE_ON:   3,  # manual + on   (RELAY_BIT_MANUAL | RELAY_BIT_ON)
+            RELAY_STATE_OFF:  2,  # manual + off  (RELAY_BIT_MANUAL)
+        }[state]
+
+        new_raws = list(fresh.raws)
+        new_raws[relay_col] = expected_raw
+        new_values = [
+            fresh.offsets[i] + fresh.factors[i] * new_raws[i]
+            for i in range(len(new_raws))
+        ]
+        self.async_set_updated_data(ProConIPData(
+            fresh.sysinfo, fresh.names, fresh.units,
+            fresh.offsets, fresh.factors, new_raws, new_values,
+        ))
